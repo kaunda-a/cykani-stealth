@@ -1,16 +1,15 @@
-# cykani-stealth
+# cykani-stealth-warp
 
 Stealth Chromium wrapper with fingerprint evasion and human-like behavior.
 
-## Installation
-
+**NOTE:** `cykani-stealth` is migrating to this package name. Install with:
 ```bash
-npm install cykani-stealth
+npm install cykani-stealth-warp
 ```
 
 **Binary Distribution (Private):**
 
-The cykani-stealth npm package contains only the JavaScript wrapper (~106kB).
+The cykani-stealth-warp npm package contains only the JavaScript wrapper (~106kB).
 The patched Chromium binary is distributed privately for anti-detection protection.
 
 **Setup Options:**
@@ -29,7 +28,7 @@ CYKANI_DOWNLOAD_URL=https://your-server.com/binaries npx cykani-stealth install
 ## Quick Start
 
 ```javascript
-import { launch } from 'cykani-stealth';
+import { launch } from 'cykani-stealth-warp';
 
 // Uses CYKANI_BINARY_PATH or downloads via CYKANI_DOWNLOAD_URL
 const session = await launch({ fingerprint: 7 });
@@ -41,13 +40,13 @@ await session.close();
 
 ```bash
 # Install binary (requires CYKANI_DOWNLOAD_URL)
-CYKANI_DOWNLOAD_URL=https://your-server.com/binaries cykani-stealth install
+CYKANI_DOWNLOAD_URL=https://your-server.com/binaries npx cykani-stealth-warp install
 
 # Quick test
-CYKANI_BINARY_PATH=/path/to/chrome cykani-stealth --url=https://example.com --fingerprint=7
+CYKANI_BINARY_PATH=/path/to/chrome cykani-stealth-warp --url=https://example.com --fingerprint=7
 
 # Sannysoft stealth test
-CYKANI_BINARY_PATH=/path/to/chrome cykani-stealth --test=sannysoft --fingerprint=42
+CYKANI_BINARY_PATH=/path/to/chrome cykani-stealth-warp --test=sannysoft --fingerprint=42
 ```
 
 ## API (same as before)
