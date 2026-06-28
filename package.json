@@ -1,6 +1,6 @@
 {
-  "name": "cykani-stealth",
-  "version": "1.0.0",
+  "name": "cykani-stealth-warp",
+  "version": "1.0.1",
   "description": "Stealth Chromium wrapper with fingerprint evasion and human-like behavior",
   "type": "module",
   "main": "src/index.js",
@@ -8,10 +8,7 @@
     ".": "./src/index.js",
     "./stealth": "./src/stealth/constellation.js",
     "./phantom": "./src/stealth/phantom.js",
-    "./core": "./src/core/maestro.js",
-    "./types": "./src/types/config.js",
-    "./adapters/playwright": "./src/adapters/playwright.js",
-    "./stealth/eval": "./src/stealth/eval.js"
+    "./core": "./src/core/maestro.js"
   },
   "bin": {
     "cykani-stealth": "./src/cli.js"
@@ -22,21 +19,5 @@
   "scripts": {
     "test": "node tests/unit.test.js"
   },
-  "keywords": ["stealth", "chromium", "puppeteer", "playwright", "bot-detection", "undetected"],
-  "license": "MIT",
-  "author": "Ndumiso Banda",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/kaunda-a/cykani-stealth"
-  },
-  "homepage": "https://github.com/kaunda-a/cykani-stealth#readme",
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "dependencies": {
-    "playwright-core": "^1.40.0"
-  },
-  "optionalDependencies": {
-    "mmdb-lib": "^0.0.1"
-  }
+  "license": "MIT"
 }

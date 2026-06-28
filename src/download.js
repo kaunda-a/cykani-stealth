@@ -1,10 +1,10 @@
-// Binary manager — auto-download, cache, and version-pin the cykani-browser binary
-// Mirrors CloakBrowser's download.ts architecture
+// Binary manager — managed distribution of cykani-browser binary
 //
-// Distribution modes:
-// 1. CYKANI_BINARY_PATH=/path/to/chrome - use local binary
+// Distribution modes (REQUIRED - no public fallback):
+// 1. CYKANI_BINARY_PATH=/path/to/chrome - use local binary directly
 // 2. CYKANI_DOWNLOAD_URL=https://... - private/self-hosted endpoint
-// 3. Automatic download from releases (requires public repo)
+//
+// No automatic downloads from public sources to protect patches.
 
 import { existsSync, mkdirSync, rmSync, chmodSync } from 'fs';
 import { homedir } from 'os';
@@ -57,9 +57,14 @@ function getBinaryPath(version) {
 }
 
 function getDownloadUrl(version, platform) {
-  const base = process.env.CYKANI_DOWNLOAD_URL || 'https://github.com/kaunda-a/cykani-browser/releases/download';
-  const archive = `cykani-chrome-chromium-v${version}-${platform}.tar.gz`;
-  return `${base}/chromium-v${version}/${archive}`;
+  const base = process.env.CYKANI_DOWNLOAD_URL;
+  if (!base) {
+    throw new Error(
+      'CYKANI_DOWNLOAD_URL not set. Set it to your binary endpoint, or use CYKANI_BINARY_PATH.'
+    );
+  }
+  const archive = `cykani-chrome-v${version}-${platform}.tar.gz`;
+  return `${base.replace(/\/$/, '')}/chromium-v${version}/${archive}`;
 }
 
 async function downloadFile(url, dest) {
@@ -93,7 +98,6 @@ async function downloadAndExtract(version, platform) {
   const url = getDownloadUrl(version, platform);
 
   console.log(`[cykani-stealth] Downloading v${version} for ${platform}...`);
-  console.log(`[cykani-stealth] URL: ${url}`);
 
   const tmpPath = join(dirname(binaryDir), `_download_${Date.now()}.tar.gz`);
 
@@ -152,7 +156,7 @@ export function binaryInfo(browserVersion) {
     binaryPath: getBinaryPath(version),
     cacheDir: getCacheDir(version),
     envPath: process.env.CYKANI_BINARY_PATH,
-    downloadUrl: process.env.CYKANI_DOWNLOAD_URL || '(default GitHub)',
+    downloadUrl: process.env.CYKANI_DOWNLOAD_URL || '(not configured)',
   };
 }
 
@@ -166,44 +170,12 @@ export async function install() {
     return binaryPath;
   }
 
+  if (!process.env.CYKANI_DOWNLOAD_URL) {
+    throw new Error(
+      'CYKANI_DOWNLOAD_URL required for install. Set it to your binary endpoint.'
+    );
+  }
+
   await downloadAndExtract(version, platform);
   return binaryPath;
-}
-
-export async function update() {
-  const repo = process.env.CYKANI_DOWNLOAD_URL
-    ? null
-    : 'https://api.github.com/repos/kaunda-a/cykani-browser/releases';
-
-  if (!repo) {
-    console.log('[cykani-stealth] Update check disabled with CYKANI_DOWNLOAD_URL');
-    return null;
-  }
-
-  try {
-    const resp = await fetch(repo, { signal: AbortSignal.timeout(10000) });
-    if (!resp.ok) {
-      console.log('[cykani-stealth] Could not check for updates');
-      return null;
-    }
-    const releases = await resp.json();
-    const platformTarball = `cykani-chrome-chromium-v1.0.0-${getPlatform()}.tar.gz`;
-    for (const rel of releases) {
-      if (rel.tag_name?.startsWith('chromium-v') && !rel.draft) {
-        const assets = new Set((rel.assets || []).map(a => a.name));
-        if (assets.has(platformTarball)) {
-          const latest = rel.tag_name.replace('chromium-v', '');
-          const latestPath = getBinaryPath(latest);
-          if (!existsSync(latestPath)) {
-            console.log(`[cykani-stealth] Updating to v${latest}...`);
-            await downloadAndExtract(latest, getPlatform());
-          }
-          return latest;
-        }
-      }
-    }
-  } catch (e) {
-    console.log('[cykani-stealth] Update check failed:', e.message);
-  }
-  return null;
 }

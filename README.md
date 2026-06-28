@@ -8,166 +8,46 @@ Stealth Chromium wrapper with fingerprint evasion and human-like behavior.
 npm install cykani-stealth
 ```
 
-**Binary Distribution:**
-- The cykani-stealth npm package contains only the JavaScript wrapper
-- The patched Chromium binary is downloaded automatically on first use (cached in `~/.cykani-stealth/`)
-- Releases are tagged as `chromium-vX.Y.Z` in the cykani-browser repository
+**Binary Distribution (Private):**
 
-**Manual Binary Setup (optional):**
+The cykani-stealth npm package contains only the JavaScript wrapper (~106kB).
+The patched Chromium binary is distributed privately for anti-detection protection.
+
+**Setup Options:**
+
 ```bash
-# Download binary manually or set path to local build
+# Option 1: Local binary (recommended for development)
 export CYKANI_BINARY_PATH=/path/to/cykani-browser/chrome
-```
 
-**CLI:**
-```bash
-npx cykani-stealth --url=https://example.com --fingerprint=7
-npx cykani-stealth --test=sannysoft --fingerprint=42
+# Option 2: Private endpoint
+export CYKANI_DOWNLOAD_URL=https://your-server.com/binaries
+
+# Option 3: Manual install via CLI
+CYKANI_DOWNLOAD_URL=https://your-server.com/binaries npx cykani-stealth install
 ```
 
 ## Quick Start
 
 ```javascript
-import { launch, launchContext, launchPersistentContext } from 'cykani-stealth';
+import { launch } from 'cykani-stealth';
 
-// Simple usage
+// Uses CYKANI_BINARY_PATH or downloads via CYKANI_DOWNLOAD_URL
 const session = await launch({ fingerprint: 7 });
 await session.goto('https://example.com');
-await session.click('button#submit');
 await session.close();
-
-// Multi-session orchestration
-const sessions = await Promise.all([
-  launch({ fingerprint: 7 }),
-  launch({ fingerprint: 42 }),
-]);
-
-// Persistent context (avoids incognito detection)
-const session = await launchPersistentContext({
-  fingerprint: 42,
-  userDataDir: './chrome-profile',
-});
 ```
 
-## API
+## CLI
 
-| Function | Description |
-|----------|-------------|
-| `launch(entity)` | Browser + page with fluent session API |
-| `launchContext(entity)` | BrowserContext that auto-closes browser on close |
-| `launchPersistentContext(entity)` | Persistent context with profile directory |
-| `buildLaunchOptions(entity)` | Get Playwright options for custom integration |
+```bash
+# Install binary (requires CYKANI_DOWNLOAD_URL)
+CYKANI_DOWNLOAD_URL=https://your-server.com/binaries cykani-stealth install
 
-## Presets
+# Quick test
+CYKANI_BINARY_PATH=/path/to/chrome cykani-stealth --url=https://example.com --fingerprint=7
 
-```javascript
-import { highTrust, aggressive } from 'cykani-stealth';
-
-const careful = await highTrust({ fingerprint: 7 });
-const fast = await aggressive({ fingerprint: 13 });
+# Sannysoft stealth test
+CYKANI_BINARY_PATH=/path/to/chrome cykani-stealth --test=sannysoft --fingerprint=42
 ```
 
-## Features
-
-| Feature | Description |
-|---------|-------------|
-| EntityBrain | Physics-based timing, mouse curves with overshoot, typing simulation |
-| Constellation | CDP runtime patches (navigator.webdriver, chrome.runtime, permissions) |
-| Phantom | Extended JS-level fingerprint spoofing (audio, canvas, WebGL) |
-| Perceptual | Per-session fingerprint randomization |
-| Choreographer | Fluent chainable action DSL |
-| Sentinel | Circuit breaker, exponential backoff, health metrics |
-| Weave | Request interception, header normalization |
-| Diagnostic | Stealth verification toolkit |
-| Visual | Screenshot regression testing |
-| Poolize | Proxy rotation + health-aware load balancing + auto-recovery |
-| CaptchaSolver | reCAPTCHA, hCaptcha, Turnstile solving via CapSolver/2captcha |
-| Webhook | Slack, Discord, Telegram diagnostics alerts |
-| ProxyManager | Health checks with cooldown + status reporting |
-| Hooks | Plugin architecture |
-
-## Entity Configuration
-
-```javascript
-const entity = {
-  fingerprint: 7,           // Seed 1-10000
-  platform: 'windows',      // windows | macos | linux
-  locale: 'en-US',
-  timezone: 'America/New_York',
-  viewport: { width: 1920, height: 947 }, // headless: auto; headed: null
-  userDataDir: './profile', // for persistent context
-  proxy: 'http://proxy:3128',
-  binary: '/path/to/chrome', // override CYKANI_BINARY_PATH
-
-  instincts: {
-    hesitation: 0.3,    // 0-1, higher = longer pauses
-    precision: 0.8,   // 0-1, higher = cleaner mouse
-    curiosity: 0.5,   // 0-1, higher = more exploration
-  },
-
-  dynamics: {
-    entropy: 0.2,    // Timing randomness
-    inertia: 0.5,    // Behavior consistency
-  },
-
-  operate: {
-    latency: 'human', // instant | robotic | organic | human | sluggish
-    headless: true,
-  },
-};
-```
-
-## Captcha Solving
-
-```javascript
-import { CaptchaSolver } from 'cykani-stealth';
-
-const solver = new CaptchaSolver({
-  apiKey: 'your-capsolver-key',
-  service: 'capsolver', // capsolver, twocaptcha, anticaptcha
-});
-
-const result = await solver.solveRecaptchaV2({
-  siteKey: '6Ld...',
-  pageUrl: 'https://example.com/login',
-});
-
-await page.evaluate((token) => {
-  document.querySelector('[name="g-recaptcha-response"]').value = token;
-}, result.token);
-```
-
-## Webhook Alerts
-
-```javascript
-import { createSlackWebhook, createDiscordWebhook } from 'cykani-stealth';
-
-const slack = createSlackWebhook('https://hooks.slack.com/services/...');
-await slack.send({
-  title: 'Cykani Scan Complete',
-  payload: { inconsistent: false, passes: 36, failures: 0 },
-});
-
-const discord = createDiscordWebhook('https://discord.com/api/webhooks/...');
-await discord.send({ title: 'Alert', payload: { status: 'blocked' }, color: 0xff0000 });
-```
-
-## Enhanced Proxy Rotation
-
-```javascript
-import { ProxyManager } from 'cykani-stealth';
-
-const pm = new ProxyManager({ maxFailures: 3, cooldownMs: 30000 });
-pm.addProxy('http://proxy1:3128');
-pm.addProxy('http://proxy2:3128');
-pm.addProxy('http://proxy3:3128');
-
-// Health check all proxies
-const status = await pm.checkAll();
-console.log(status);
-// [ { url: '...', ok: true, health: 0.95 }, ... ]
-```
-
-## License
-
-MIT
+## API (same as before)
