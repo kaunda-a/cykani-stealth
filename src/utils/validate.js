@@ -78,6 +78,14 @@ export function validateEntity(entity) {
     }
   }
 
+  if (entity.humor !== undefined && typeof entity.humor !== 'boolean') {
+    errors.push('humor must be a boolean');
+  }
+
+  if (entity.userDataDir !== undefined && typeof entity.userDataDir !== 'string') {
+    errors.push('userDataDir must be a string path');
+  }
+
   if (entity.extensions !== undefined && !Array.isArray(entity.extensions)) {
     errors.push('extensions must be an array of paths');
   }

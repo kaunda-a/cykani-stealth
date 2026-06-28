@@ -15,7 +15,8 @@
     "test": "node tests/unit.test.js",
     "test:integration": "node tests/integration.test.js",
     "test:all": "node tests/unit.test.js && node tests/integration.test.js",
-    "test:ci": "node tests/unit.test.js"
+    "test:ci": "node tests/unit.test.js",
+    "test:detect": "node tests/detect.js"
   },
   "license": "MIT",
   "engines": {

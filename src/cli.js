@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, existsSync } from 'fs';
-import { launch, createMaestro } from './index.js';
+import { strike, createMaestro } from './index.js';
 import { Diagnostic } from './agents/diagnostic.js';
 
 const args = process.argv.slice(2);
@@ -19,11 +19,12 @@ for (let i = 0; i < args.length; i++) {
   else if (arg.startsWith('--screenshot=')) opts.screenshotPath = arg.split('=')[1];
   else if (arg.startsWith('--timeout=')) opts.timeout = parseInt(arg.split('=')[1], 10);
   else if (arg.startsWith('--config=')) configFiles.push(arg.split('=')[1]);
+  else if (arg.startsWith('--auto=')) opts.auto = parseInt(arg.split('=')[1], 10);
   else if (arg === '--headful') opts.headless = false;
+  else if (arg === '--humor') opts.humor = true;
   else if (arg === '--help' || arg === '-h') { opts.help = true; }
 }
 
-// Load config files (last one wins on conflicts)
 for (const configFile of configFiles) {
   try {
     if (existsSync(configFile)) {
@@ -37,10 +38,12 @@ for (const configFile of configFiles) {
 }
 
 if (opts.help) {
-  console.log('Cykani Stealth CLI');
+  console.log('cykani-stealth CLI');
   console.log('');
   console.log('Options:');
   console.log('  --url=<url>              Navigate to a URL');
+  console.log('  --humor                  Enable humor mode (strike patching)');
+  console.log('  --auto=<sec>             Autonomous browsing duration (seconds)');
   console.log('  --fingerprint=<n>        Fingerprint seed (1-10000, default 7)');
   console.log('  --proxy=<url>            HTTP/SOCKS proxy (e.g. socks5://127.0.0.1:9050)');
   console.log('  --test=sannysoft         Run stealth diagnostic on bot.sannysoft.com');
@@ -49,11 +52,12 @@ if (opts.help) {
   console.log('  --cookies-from=<file>    Load cookies from JSON file');
   console.log('  --export-har=<file>      Export HAR to file');
   console.log('  --timeout=<ms>           Navigation timeout (default 30000)');
-  console.log('  --config=<file>          Load Entity config from JSON file');
+  console.log('  --config=<file>          Load entity config from JSON file');
   console.log('  --headful                Show browser window');
   console.log('  --help, -h               Show this help');
   console.log('');
   console.log('Examples:');
+  console.log('  cykani-stealth --url=https://example.com --humor --auto=30');
   console.log('  cykani-stealth --url=https://example.com --screenshot=page.png');
   console.log('  cykani-stealth --test=sannysoft --fingerprint=42');
   console.log('  cykani-stealth --url=https://example.com --script=./actions.js');
@@ -63,10 +67,10 @@ if (opts.help) {
 const entity = {
   fingerprint: opts.fingerprint ?? 7,
   proxy: opts.proxy,
+  humor: opts.humor ?? false,
   operate: { headless: opts.headless ?? true, timeout: opts.timeout },
 };
 
-// ─── Cookie loading ───
 async function loadCookies(session, filePath) {
   if (!filePath || !existsSync(filePath)) return;
   try {
@@ -86,7 +90,6 @@ async function loadCookies(session, filePath) {
   }
 }
 
-// ─── Script execution ───
 async function runScript(session, filePath) {
   if (!filePath || !existsSync(filePath)) return;
   try {
@@ -112,7 +115,7 @@ async function runScript(session, filePath) {
 }
 
 if (opts.test === 'sannysoft') {
-  const session = await launch(entity);
+  const session = await strike(entity);
   await loadCookies(session, opts.cookiesFrom);
   await session.goto('https://bot.sannysoft.com');
   const page = session.page();
@@ -123,15 +126,23 @@ if (opts.test === 'sannysoft') {
   if (opts.exportHar) {
     const { Telemetry } = await import('./agents/telemetry.js');
     const har = new Telemetry().exportHar();
+    const { writeFileSync } = await import('fs');
     writeFileSync(opts.exportHar, JSON.stringify(har, null, 2));
     console.log(`HAR exported to ${opts.exportHar}`);
   }
   await session.close();
 } else if (opts.url) {
-  const session = await launch(entity);
+  const session = await strike(entity);
   await loadCookies(session, opts.cookiesFrom);
   await session.goto(opts.url);
-  await runScript(session, opts.script);
+
+  if (opts.auto) {
+    console.log(`Autonomous browsing for ${opts.auto}s...`);
+    await session.autonomous().act(opts.auto * 1000);
+  } else {
+    await runScript(session, opts.script);
+  }
+
   if (opts.screenshotPath) {
     const buf = await session.screenshot();
     const { writeFileSync } = await import('fs');
@@ -139,9 +150,8 @@ if (opts.test === 'sannysoft') {
     console.log(`Screenshot saved to ${opts.screenshotPath}`);
   }
   if (opts.exportHar) {
-    const { Telemetry } = await import('./agents/telemetry.js');
-    const har = new Telemetry().exportHar();
     const { writeFileSync } = await import('fs');
+    const har = await session.exportHar();
     writeFileSync(opts.exportHar, JSON.stringify(har, null, 2));
     console.log(`HAR exported to ${opts.exportHar}`);
   }

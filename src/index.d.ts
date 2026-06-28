@@ -26,7 +26,26 @@ export { StealthEval } from './stealth/eval.js';
 export { injectCursorOverlay, patchContextForCursor } from './stealth/cursor.js';
 export { validateEntity, assertValidEntity } from './utils/validate.js';
 export { StealthError, ValidationError, SessionError, CaptchaError, BrowserError } from './utils/errors.js';
-export { walkOut } from './humor/strike.js';
+export { walkOut, walkOutContext, walkOutBrowser, patchBrowser, CdpWorld } from './humor/strike.js';
+export { resolveGeoip, COUNTRY_LOCALE_MAP } from './utils/geoip.js';
+export { SessionState } from './utils/session.js';
+
+// CdpWorld declaration
+export class CdpWorld {
+  constructor(page: any);
+  evaluate(fn: Function, ...args: any[]): Promise<any>;
+  invalidate(): void;
+  destroy(): Promise<void>;
+}
+
+export class SessionState {
+  constructor(filePath?: string);
+  load(): Promise<void>;
+  persist(data?: any): Promise<void>;
+  importFromPage(page: any): Promise<any>;
+  exportToPage(page: any): Promise<void>;
+  diff(other?: any): string[];
+}
 
 export const IGNORE_DEFAULT_ARGS: string[];
 export const DEFAULT_VIEWPORT: { width: number; height: number };
@@ -68,10 +87,32 @@ export interface Session {
   off: (event: string, fn: Function) => void;
 }
 
-export function launch(entity?: any): Promise<Session>;
+export function strike(entity?: any): Promise<Session>;
+export function summon(entity?: any): Promise<Session>;
+export function unleash(entity?: any): Promise<Session>;
 export function createMaestro(opts?: any): Maestro;
 export function launchContext(entity?: any): Promise<Session>;
 export function launchPersistentContext(entity?: any): Promise<Session>;
 export function buildLaunchOptions(entity?: any): Promise<any>;
+export function connectOverCDP(endpoint: string, entity?: any): Promise<Session>;
 export function highTrust(entity?: any): Promise<Session>;
 export function aggressive(entity?: any): Promise<Session>;
+export function humorLaunch(entity?: any): Promise<Session>;
+export function natural(entity?: any): Promise<Session>;
+export function stealth(entity?: any): Promise<Session>;
+
+export const presets: {
+  strike: typeof strike;
+  summon: typeof summon;
+  unleash: typeof unleash;
+  createMaestro: typeof createMaestro;
+  launchContext: typeof launchContext;
+  launchPersistentContext: typeof launchPersistentContext;
+  buildLaunchOptions: typeof buildLaunchOptions;
+  connectOverCDP: typeof connectOverCDP;
+  highTrust: typeof highTrust;
+  aggressive: typeof aggressive;
+  humorLaunch: typeof humorLaunch;
+  natural: typeof natural;
+  stealth: typeof stealth;
+};

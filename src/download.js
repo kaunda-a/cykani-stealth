@@ -165,3 +165,60 @@ export async function install() {
   await downloadAndExtract(version, platform);
   return binaryPath;
 }
+
+const UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000; // once per day
+const _updateChecked = { value: false };
+
+export function checkForUpdates(opts = {}) {
+  if (typeof opts.checkNow === 'function') opts.checkNow = opts.checkNow;
+  const doCheck = () => _checkForUpdatesImpl().catch(() => {});
+  if (opts.sync) return _checkForUpdatesImpl();
+  if (!_updateChecked.value) {
+    _updateChecked.value = true;
+    setTimeout(doCheck, opts.delay ?? 3000);
+  }
+}
+
+async function _getLatestReleaseTag() {
+  const url = `https://api.github.com/repos/${GITHUB_ORG}/${REPO}/releases/latest`;
+  const response = await fetch(url, {
+    headers: { Accept: 'application/vnd.github.v3+json' },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) throw new Error(`GitHub API: HTTP ${response.status}`);
+  const data = await response.json();
+  return data.tag_name;
+}
+
+function _parseVersion(tag) {
+  const m = tag.match(/(\d+\.\d+\.\d+)/);
+  return m ? m[1] : null;
+}
+
+function _compareVersions(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+  }
+  return 0;
+}
+
+async function _checkForUpdatesImpl() {
+  try {
+    const tag = await _getLatestReleaseTag();
+    const latest = _parseVersion(tag);
+    const current = getVersion();
+    if (latest && _compareVersions(latest, current) > 0) {
+      console.log(`[cykani-stealth] Update available: v${current} → v${latest} (${tag})`);
+      return { current, latest, updateAvailable: true };
+    }
+    return { current, latest, updateAvailable: false };
+  } catch {
+    return { current: getVersion(), latest: null, updateAvailable: false };
+  }
+}
+
+// Auto-check on load (non-blocking)
+setTimeout(() => _checkForUpdatesImpl().catch(() => {}), 5000);

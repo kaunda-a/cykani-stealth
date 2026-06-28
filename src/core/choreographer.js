@@ -27,6 +27,10 @@ export class Choreographer {
     this.weave = new Weave(page);
     this.perceptual = new Perceptual(opts.fingerprintSeed ?? brain.entity?.fingerprint ?? 7);
     this.stealth = null;
+    this._origGoto = page.goto.bind(page);
+    this._origReload = page.reload.bind(page);
+    this._origGoBack = page.goBack.bind(page);
+    this._origGoForward = page.goForward.bind(page);
   }
 
   _log(type, payload) {
@@ -84,7 +88,7 @@ export class Choreographer {
   async goto(url, opts = {}) {
     this._log('navigate', { url, opts });
     await this._ensureStealth();
-    const result = await this.page.goto(url, { waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
+    const result = await this._origGoto(url, { waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
     await sleep(this.brain.getDelay(200));
     const challenge = await this.observer.detectCaptcha();
     this._log('challenged', challenge);
@@ -319,21 +323,21 @@ export class Choreographer {
 
   async reload(opts = {}) {
     this._log('reload', opts);
-    await this.page.reload({ waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
+    await this._origReload({ waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
     await sleep(this.brain.getDelay(200));
     return this;
   }
 
   async goBack(opts = {}) {
     this._log('goBack', opts);
-    await this.page.goBack({ waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
+    await this._origGoBack({ waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
     await sleep(this.brain.getDelay(150));
     return this;
   }
 
   async goForward(opts = {}) {
     this._log('goForward', opts);
-    await this.page.goForward({ waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
+    await this._origGoForward({ waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
     await sleep(this.brain.getDelay(150));
     return this;
   }

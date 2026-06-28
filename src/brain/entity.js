@@ -145,6 +145,15 @@ export class EntityBrain {
     return this._rng3() < rate;
   }
 
+  getKeyHoldDuration() {
+    const latency = this.entity.operate?.latency ?? 'instant';
+    const base = {
+      instant: 10, robotic: 30, organic: 45, human: 60, sluggish: 100,
+    }[latency] ?? 30;
+    const jitter = (this._rng() - 0.5) * base * 0.6;
+    return Math.max(8, base + jitter);
+  }
+
   getArgs() {
     const args = [
       '--no-sandbox',
@@ -179,6 +188,9 @@ export class EntityBrain {
 
     if (this.entity.proxy) {
       args.push(`--proxy-server=${this.entity.proxy}`);
+      if (this.entity.webrtcIp !== false) {
+        args.push('--fingerprint-webrtc-ip=auto');
+      }
     }
 
     return args;

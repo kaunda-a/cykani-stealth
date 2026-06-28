@@ -1,5 +1,8 @@
 import { describe, skip, run } from './harness.js';
 
+// Mock-based integration tests (no playwright-core required)
+await import('./integration/mock-maestro.test.js');
+
 let hasPlaywright = true;
 try {
   await import('./integration/sessions.test.js');

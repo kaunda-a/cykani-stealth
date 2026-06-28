@@ -195,6 +195,39 @@ export const CONSTELLATION = (() => {
         };
       }
     } catch (_) {}
+
+    // ─── Performance API stealth ───
+    try {
+      const origNow = Performance.prototype.now;
+      if (origNow) {
+        Performance.prototype.now = function() {
+          var t = origNow.call(this);
+          return Math.round(t / 5) * 5;
+        };
+      }
+    } catch (_) {}
+    try {
+      if (performance.timeOrigin !== undefined) {
+        Object.defineProperty(performance, 'timeOrigin', {
+          get() { return performance.timing ? performance.timing.navigationStart : Date.now() - performance.now(); },
+          configurable: true,
+        });
+      }
+    } catch (_) {}
+    try {
+      if (!performance.memory) {
+        Object.defineProperty(performance, 'memory', {
+          get() {
+            return {
+              jsHeapSizeLimit: 2172649472,
+              totalJSHeapSize: 10000000 + Math.floor(Math.random() * 50000000),
+              usedJSHeapSize: 8000000 + Math.floor(Math.random() * 30000000),
+            };
+          },
+          configurable: true,
+        });
+      }
+    } catch (_) {}
   }.toString().replace(/^[^{]*{/, '').replace(/}\s*$/, '');
 
   return `(function(){${code}})();`;

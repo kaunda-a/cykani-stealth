@@ -14,9 +14,10 @@ import { Observer } from '../agents/observer.js';
 import { Recorder } from './recorder.js';
 import { ensureBinary } from '../download.js';
 import { assertValidEntity } from '../utils/validate.js';
-import { walkOut } from '../humor/strike.js';
+import { walkOut, walkOutContext, walkOutBrowser } from '../humor/strike.js';
 import { AutoPilot } from '../agents/autoPilot.js';
 import { Autonomous } from '../agents/autonomous.js';
+import { resolveGeoip } from '../utils/geoip.js';
 
 export const IGNORE_DEFAULT_ARGS = ['--enable-automation', '--enable-unsafe-swiftshader'];
 export const DEFAULT_VIEWPORT = { width: 1920, height: 947 };
@@ -71,6 +72,7 @@ export class Maestro {
   }
 
   async launch(entity = {}) {
+    if (entity.geoip) entity = { ...entity, ...(await resolveGeoip(entity)) };
     assertValidEntity(entity);
     const brain = new EntityBrain(entity);
     let executable = await this._resolveBinary(entity);
@@ -118,10 +120,15 @@ export class Maestro {
   }
 
   async close(id) {
+    if (!id || (!this.browsers.has(id) && !this.contexts.has(id))) return;
     this.hooks.emit('before:close', { id });
     const browser = this.browsers.get(id);
     if (browser) {
-      await browser.close().catch(() => {});
+      try {
+        const ctx = this.contexts.get(id);
+        if (ctx) { try { await ctx.close().catch(() => {}); } catch {} }
+        await browser.close().catch(() => {});
+      } catch {}
     } else {
       const ctx = this.contexts.get(id);
       if (ctx) await ctx.close().catch(() => {});
@@ -144,6 +151,11 @@ export class Maestro {
     const state = this.sessionsState.get(id);
     if (!state) throw new Error(`Session ${id} not found`);
     const browser = this.browsers.get(id);
+    if (!browser) {
+      // Browser was closed — relaunch
+      const newSession = await this.launch(state.entity);
+      return newSession;
+    }
     const headless = state.entity.operate?.headless ?? true;
     const viewport = state.entity.viewport ?? (headless ? DEFAULT_VIEWPORT : null);
     const newContext = await browser.newContext({
@@ -151,7 +163,12 @@ export class Maestro {
       locale: state.entity.locale ?? 'en-US',
       timezoneId: state.entity.timezone ?? 'America/New_York',
       extraHTTPHeaders: { 'Accept-Language': this._acceptLanguage(state.entity.locale) },
+    }).catch(async () => {
+      // Browser disconnected — relaunch
+      const newSession = await this.launch(state.entity);
+      return null;
     });
+    if (!newContext) return this._getProxy(state.id);
     const newPage = await newContext.newPage();
     this.contexts.set(id, newContext);
     this.pages.set(id, newPage);
@@ -161,6 +178,7 @@ export class Maestro {
   }
 
   async launchContext(entity = {}) {
+    if (entity.geoip) entity = { ...entity, ...(await resolveGeoip(entity)) };
     assertValidEntity(entity);
     const brain = new EntityBrain(entity);
     let executable = await this._resolveBinary(entity);
@@ -211,6 +229,7 @@ export class Maestro {
   }
 
   async launchPersistentContext(entity = {}) {
+    if (entity.geoip) entity = { ...entity, ...(await resolveGeoip(entity)) };
     assertValidEntity(entity);
     const brain = new EntityBrain(entity);
     let executable = await this._resolveBinary(entity);
@@ -243,6 +262,41 @@ export class Maestro {
     this.contexts.set(id, context);
     this.pages.set(id, page);
     this.sessionsState.set(id, { entity, brain, choreographer, proxy, createdAt: Date.now(), id });
+    return this._getProxy(id);
+  }
+
+  async connectOverCDP(endpoint, entity = {}) {
+    if (!endpoint) throw new Error('CDP endpoint URL required');
+    const brain = new EntityBrain({ ...entity, fingerprint: entity.fingerprint ?? Math.floor(Math.random() * 10000) });
+
+    // Resolve endpoint to WebSocket URL if given an HTTP endpoint
+    let wsUrl = endpoint;
+    if (/^https?:\/\//.test(endpoint) && !endpoint.startsWith('ws')) {
+      const resp = await fetch(`${endpoint}/json/version`).catch(() => null);
+      if (!resp || !resp.ok) throw new Error(`Failed to connect to CDP endpoint: ${endpoint}`);
+      const info = await resp.json();
+      if (!info.webSocketDebuggerUrl) throw new Error(`No WebSocket debugger URL at ${endpoint}`);
+      wsUrl = info.webSocketDebuggerUrl;
+    }
+
+    const browser = await chromium.connectOverCDP(wsUrl);
+    const contexts = browser.contexts();
+    const ctx = contexts[0] || await browser.newContext().catch(() => null);
+    if (!ctx) throw new Error('Failed to create browser context');
+    const pages = ctx.pages();
+    const page = pages[0] || await ctx.newPage().catch(() => null);
+    if (!page) throw new Error('Failed to create page');
+
+    this.telemetry.installOnPage(page);
+
+    const id = this._genId();
+    const choreographer = new Choreographer(page, brain, { telemetry: this.telemetry, hooks: this.hooks, strategist: this.strategist });
+    if (entity.humor) walkOut(page, choreographer, brain);
+
+    this.browsers.set(id, browser);
+    this.contexts.set(id, ctx);
+    this.pages.set(id, page);
+    this.sessionsState.set(id, { entity, brain, choreographer, proxy: null, createdAt: Date.now(), id, overCDP: true });
     return this._getProxy(id);
   }
 

@@ -32,15 +32,23 @@ export { Webhook, createSlackWebhook, createDiscordWebhook, createTelegramWebhoo
 
 export { StealthEval } from './stealth/eval.js';
 export { injectCursorOverlay, patchContextForCursor } from './stealth/cursor.js';
-export { walkOut } from './humor/strike.js';
+export { walkOut, walkOutContext, walkOutBrowser, patchBrowser, CdpWorld } from './humor/strike.js';
+export { resolveGeoip, COUNTRY_LOCALE_MAP } from './utils/geoip.js';
+export { SessionState } from './utils/session.js';
 
 export { IGNORE_DEFAULT_ARGS, DEFAULT_VIEWPORT } from './core/maestro.js';
 
-/** Launch a browser with fluent session API */
-export async function launch(entity = {}) {
+/** Launch a browser with fluent session API — primary entry point */
+export async function strike(entity = {}) {
   const maestro = new Maestro();
   return maestro.launch(entity);
 }
+
+/** Thematic alias — summon a browser session */
+export const summon = strike;
+
+/** Thematic alias — unleash a browser session */
+export const unleash = strike;
 
 /** Create orchestrator for multi-session control */
 export function createMaestro(opts = {}) {
@@ -65,7 +73,13 @@ export async function buildLaunchOptions(entity = {}) {
   return maestro.buildLaunchOptions(entity);
 }
 
-/** highTrust preset */
+/** Connect to a running cykani-browser instance over CDP */
+export async function connectOverCDP(endpoint, entity = {}) {
+  const maestro = new Maestro();
+  return maestro.connectOverCDP(endpoint, entity);
+}
+
+/** highTrust preset — careful, human-like session with high hesitation */
 export async function highTrust(entity = {}) {
   const maestro = new Maestro({ strategist: Strategist.highTrust() });
   const result = await maestro.launch({
@@ -76,7 +90,7 @@ export async function highTrust(entity = {}) {
   return result;
 }
 
-/** aggressive preset */
+/** aggressive preset — fast, low-hesitation session for speed-critical tasks */
 export async function aggressive(entity = {}) {
   const maestro = new Maestro({ strategist: Strategist.aggressive() });
   const result = await maestro.launch({
@@ -87,4 +101,45 @@ export async function aggressive(entity = {}) {
   return result;
 }
 
-export default { launch, createMaestro, launchContext, launchPersistentContext, buildLaunchOptions, highTrust, aggressive };
+/** humor preset — strike with humor mode (strike patching) enabled */
+export async function humorLaunch(entity = {}) {
+  return strike({ humor: true, ...entity });
+}
+
+/** natural preset — relaxed human browsing with humor + organic latency */
+export async function natural(entity = {}) {
+  return strike({
+    humor: true,
+    instincts: { hesitation: 0.6, precision: 0.7, curiosity: 0.5 },
+    operate: { latency: 'organic', headless: true },
+    ...entity,
+  });
+}
+
+/** stealth preset — full triple-layer stealth with humor + low profile */
+export async function stealth(entity = {}) {
+  return strike({
+    humor: true,
+    instincts: { hesitation: 0.4, precision: 0.85, curiosity: 0.3 },
+    operate: { latency: 'human', headless: false },
+    ...entity,
+  });
+}
+
+export const presets = {
+  strike,
+  summon,
+  unleash,
+  createMaestro,
+  launchContext,
+  launchPersistentContext,
+  buildLaunchOptions,
+  connectOverCDP,
+  highTrust,
+  aggressive,
+  humorLaunch,
+  natural,
+  stealth,
+};
+
+export default presets;
