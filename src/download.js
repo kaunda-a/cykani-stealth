@@ -14,11 +14,11 @@ const GITHUB_ORG = 'kaunda-a';
 const REPO = 'cykani-stealth';
 
 const PLATFORM_VERSIONS = {
-  'linux-x64': '1.0.0',
-  'linux-arm64': '1.0.0',
-  'darwin-arm64': '1.0.0',
-  'darwin-x64': '1.0.0',
-  'win32-x64': '1.0.0',
+  'linux-x64': '1.0.1',
+  'linux-arm64': '1.0.1',
+  'darwin-arm64': '1.0.1',
+  'darwin-x64': '1.0.1',
+  'win32-x64': '1.0.1',
 };
 
 function getPlatform() {
@@ -38,7 +38,7 @@ function getVersion() {
 
 function getCacheDir(version) {
   const v = version || getVersion();
-  return process.env.CYKANI_STEALTH_CACHE || join(CACHE_DIR, `chromium-v${v}`);
+  return process.env.CYKANI_STEALTH_CACHE || join(CACHE_DIR, `cykani-browser-v${v}`);
 }
 
 function getBinaryPath(version) {
