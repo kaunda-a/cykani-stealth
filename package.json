@@ -1,15 +1,9 @@
 {
-  "name": "cykani-stealth-warp",
-  "version": "1.0.1",
+  "name": "cykani-stealth",
+  "version": "1.0.0",
   "description": "Stealth Chromium wrapper with fingerprint evasion and human-like behavior",
   "type": "module",
   "main": "src/index.js",
-  "exports": {
-    ".": "./src/index.js",
-    "./stealth": "./src/stealth/constellation.js",
-    "./phantom": "./src/stealth/phantom.js",
-    "./core": "./src/core/maestro.js"
-  },
   "bin": {
     "cykani-stealth": "./src/cli.js"
   },
@@ -19,5 +13,14 @@
   "scripts": {
     "test": "node tests/unit.test.js"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "playwright-core": "^1.40.0"
+  },
+  "optionalDependencies": {
+    "mmdb-lib": "^3.0.2"
+  }
 }

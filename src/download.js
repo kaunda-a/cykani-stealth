@@ -1,10 +1,6 @@
-// Binary manager — managed distribution of cykani-browser binary
-//
-// Distribution modes (REQUIRED - no public fallback):
-// 1. CYKANI_BINARY_PATH=/path/to/chrome - use local binary directly
-// 2. CYKANI_DOWNLOAD_URL=https://... - private/self-hosted endpoint
-//
-// No automatic downloads from public sources to protect patches.
+// Binary manager — auto-download, cache, and version-pin the cykani-browser binary
+// Binary releases are hosted on the cykani-stealth repository.
+// The private patches repository is never referenced.
 
 import { existsSync, mkdirSync, rmSync, chmodSync } from 'fs';
 import { homedir } from 'os';
@@ -15,6 +11,8 @@ import { pipeline } from 'stream/promises';
 import { execSync } from 'child_process';
 
 const CACHE_DIR = join(homedir(), '.cykani-stealth');
+const GITHUB_ORG = 'kaunda-a';
+const REPO = 'cykani-stealth';
 
 const PLATFORM_VERSIONS = {
   'linux-x64': '1.0.0',
@@ -56,15 +54,10 @@ function getBinaryPath(version) {
   return join(cacheDir, 'chrome');
 }
 
-function getDownloadUrl(version, platform) {
-  const base = process.env.CYKANI_DOWNLOAD_URL;
-  if (!base) {
-    throw new Error(
-      'CYKANI_DOWNLOAD_URL not set. Set it to your binary endpoint, or use CYKANI_BINARY_PATH.'
-    );
-  }
-  const archive = `cykani-chrome-v${version}-${platform}.tar.gz`;
-  return `${base.replace(/\/$/, '')}/chromium-v${version}/${archive}`;
+function getReleaseUrl(version, platform) {
+  const base = `https://github.com/${GITHUB_ORG}/${REPO}/releases/download/chromium-v${version}`;
+  const archive = `cykani-chrome-chromium-v${version}-${platform}.tar.gz`;
+  return `${base}/${archive}`;
 }
 
 async function downloadFile(url, dest) {
@@ -95,7 +88,7 @@ async function extractTar(archivePath, destDir) {
 async function downloadAndExtract(version, platform) {
   const binaryDir = getCacheDir(version);
   const binaryPath = getBinaryPath(version);
-  const url = getDownloadUrl(version, platform);
+  const url = getReleaseUrl(version, platform);
 
   console.log(`[cykani-stealth] Downloading v${version} for ${platform}...`);
 
@@ -118,7 +111,8 @@ async function downloadAndExtract(version, platform) {
   }
 }
 
-export async function ensureBinary() {
+export async function ensureBinary () {
+  // Check env override first
   if (process.env.CYKANI_BINARY_PATH) {
     if (!existsSync(process.env.CYKANI_BINARY_PATH)) {
       throw new Error(
@@ -148,15 +142,14 @@ export function clearCache() {
   }
 }
 
-export function binaryInfo(browserVersion) {
-  const version = browserVersion || getVersion();
+export function binaryInfo() {
+  const version = getVersion();
   return {
     version,
     platform: getPlatform(),
     binaryPath: getBinaryPath(version),
     cacheDir: getCacheDir(version),
     envPath: process.env.CYKANI_BINARY_PATH,
-    downloadUrl: process.env.CYKANI_DOWNLOAD_URL || '(not configured)',
   };
 }
 
@@ -168,12 +161,6 @@ export async function install() {
   if (existsSync(binaryPath)) {
     console.log(`[cykani-stealth] Binary already installed: ${binaryPath}`);
     return binaryPath;
-  }
-
-  if (!process.env.CYKANI_DOWNLOAD_URL) {
-    throw new Error(
-      'CYKANI_DOWNLOAD_URL required for install. Set it to your binary endpoint.'
-    );
   }
 
   await downloadAndExtract(version, platform);
