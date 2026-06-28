@@ -1,6 +1,5 @@
 // Binary manager — auto-download, cache, and version-pin the cykani-browser binary
 // Binary releases are hosted on the cykani-stealth repository.
-// The private patches repository is never referenced.
 
 import { existsSync, mkdirSync, rmSync, chmodSync } from 'fs';
 import { homedir } from 'os';
@@ -55,8 +54,8 @@ function getBinaryPath(version) {
 }
 
 function getReleaseUrl(version, platform) {
-  const base = `https://github.com/${GITHUB_ORG}/${REPO}/releases/download/chromium-v${version}`;
-  const archive = `cykani-chrome-chromium-v${version}-${platform}.tar.gz`;
+  const base = `https://github.com/${GITHUB_ORG}/${REPO}/releases/download/cykani-browser-v${version}`;
+  const archive = `cykani-browser-v${version}-${platform}.tar.gz`;
   return `${base}/${archive}`;
 }
 
@@ -111,7 +110,7 @@ async function downloadAndExtract(version, platform) {
   }
 }
 
-export async function ensureBinary () {
+export async function ensureBinary() {
   // Check env override first
   if (process.env.CYKANI_BINARY_PATH) {
     if (!existsSync(process.env.CYKANI_BINARY_PATH)) {
