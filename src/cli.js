@@ -1,8 +1,6 @@
 #!/usr/bin/env node
-// CLI for quick cykani-stealth testing
-
-import { launch } from './src/index.js';
-import { Diagnostic } from './src/agents/diagnostic.js';
+import { launch } from './index.js';
+import { Diagnostic } from './agents/diagnostic.js';
 
 const args = process.argv.slice(2);
 const opts = {};
@@ -40,7 +38,7 @@ if (opts.test === 'sannysoft') {
   await session.close();
 } else {
   console.log('Usage:');
-  console.log('  node cli.js --test=sannysoft --fingerprint=42');
-  console.log('  node cli.js --url=https://example.com --fingerprint=7');
+  console.log('  cykani-stealth --test=sannysoft --fingerprint=42');
+  console.log('  cykani-stealth --url=https://example.com --fingerprint=7');
   process.exit(1);
 }

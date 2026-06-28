@@ -1,15 +1,21 @@
 // Binary manager — auto-download, cache, and version-pin the cykani-browser binary
-// Mirrors CloakBrowser's download.py / download.ts architecture
+// Mirrors CloakBrowser's download.ts architecture
+//
+// Distribution modes:
+// 1. CYKANI_BINARY_PATH=/path/to/chrome - use local binary
+// 2. CYKANI_DOWNLOAD_URL=https://... - private/self-hosted endpoint
+// 3. Automatic download from releases (requires public repo)
 
-import { existsSync, constants } from 'fs';
-import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, chmodSync } from 'fs';
 import { homedir } from 'os';
 import { join, dirname } from 'path';
+import { createWriteStream, renameSync } from 'fs';
 import { Readable } from 'stream';
-import { createGunzip } from 'zlib';
 import { pipeline } from 'stream/promises';
+import { execSync } from 'child_process';
 
 const CACHE_DIR = join(homedir(), '.cykani-stealth');
+
 const PLATFORM_VERSIONS = {
   'linux-x64': '1.0.0',
   'linux-arm64': '1.0.0',
@@ -33,12 +39,13 @@ function getVersion() {
   return process.env.CYKANI_VERSION || PLATFORM_VERSIONS[getPlatform()];
 }
 
-function getCacheDir() {
-  return process.env.CYKANI_STEALTH_CACHE || join(CACHE_DIR, 'chromium-v' + getVersion());
+function getCacheDir(version) {
+  const v = version || getVersion();
+  return process.env.CYKANI_STEALTH_CACHE || join(CACHE_DIR, `chromium-v${v}`);
 }
 
-function getBinaryPath() {
-  const cacheDir = getCacheDir();
+function getBinaryPath(version) {
+  const cacheDir = getCacheDir(version);
   const platform = getPlatform();
   if (platform.startsWith('darwin')) {
     return join(cacheDir, 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
@@ -50,81 +57,153 @@ function getBinaryPath() {
 }
 
 function getDownloadUrl(version, platform) {
-  const base = process.env.CYKANI_DOWNLOAD_URL || 'https://github.com/ndumsio/cykani-browser/releases/download';
-  const archive = `cykani-browser-v${version}-${platform}.tar.gz`;
-  return `${base}/v${version}/${archive}`;
+  const base = process.env.CYKANI_DOWNLOAD_URL || 'https://github.com/kaunda-a/cykani-browser/releases/download';
+  const archive = `cykani-chrome-chromium-v${version}-${platform}.tar.gz`;
+  return `${base}/chromium-v${version}/${archive}`;
 }
 
-async function download(url, dest) {
+async function downloadFile(url, dest) {
   mkdirSync(dirname(dest), { recursive: true });
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to download binary: ${response.status} ${response.statusText}`);
+    throw new Error(`Download failed: HTTP ${response.status} ${response.statusText}`);
   }
-  // Stream to temp file
   const tmp = dest + '.tmp';
   const stream = createWriteStream(tmp);
-  
   if (response.body) {
     await pipeline(Readable.from(response.body), stream);
   }
-  
-  writeFileSync(dest + '.marker', new Date().toISOString());
-  // In real implementation: extract tar.gz here
-  // For now, just rename tmp to dest
-  // require('fs').renameSync(tmp, dest);
-  // chmod for Linux/macOS
+  renameSync(tmp, dest);
   if (process.platform !== 'win32') {
-    // require('fs').chmodSync(dest, 0o755);
+    chmodSync(dest, 0o755);
   }
 }
 
-export async function ensureBinary(licenseKey) {
-  // Check env override first
+async function extractTar(archivePath, destDir) {
+  mkdirSync(destDir, { recursive: true });
+  if (existsSync(destDir)) {
+    rmSync(destDir, { recursive: true, force: true });
+  }
+  execSync(`tar -xzf ${archivePath} -C ${destDir}`, { timeout: 120000 });
+}
+
+async function downloadAndExtract(version, platform) {
+  const binaryDir = getCacheDir(version);
+  const binaryPath = getBinaryPath(version);
+  const url = getDownloadUrl(version, platform);
+
+  console.log(`[cykani-stealth] Downloading v${version} for ${platform}...`);
+  console.log(`[cykani-stealth] URL: ${url}`);
+
+  const tmpPath = join(dirname(binaryDir), `_download_${Date.now()}.tar.gz`);
+
+  try {
+    await downloadFile(url, tmpPath);
+    console.log(`[cykani-stealth] Extracting to ${binaryDir}`);
+    await extractTar(tmpPath, binaryDir);
+
+    if (!existsSync(binaryPath)) {
+      throw new Error(`Binary not found after extraction at ${binaryPath}`);
+    }
+
+    console.log(`[cykani-stealth] Binary ready: ${binaryPath}`);
+  } finally {
+    if (existsSync(tmpPath)) {
+      rmSync(tmpPath);
+    }
+  }
+}
+
+export async function ensureBinary() {
   if (process.env.CYKANI_BINARY_PATH) {
+    if (!existsSync(process.env.CYKANI_BINARY_PATH)) {
+      throw new Error(
+        `CYKANI_BINARY_PATH='${process.env.CYKANI_BINARY_PATH}' but file does not exist`
+      );
+    }
+    console.log(`[cykani-stealth] Using binary: ${process.env.CYKANI_BINARY_PATH}`);
     return process.env.CYKANI_BINARY_PATH;
   }
 
-  const binaryPath = getBinaryPath();
+  const version = getVersion();
+  const binaryPath = getBinaryPath(version);
   if (existsSync(binaryPath)) {
     return binaryPath;
   }
 
-  // Auto-download (requires license key or free tier URL)
-  const version = getVersion();
   const platform = getPlatform();
-  const url = getDownloadUrl(version, platform);
-
-  console.log(`Downloading cykani-browser v${version} for ${platform}...`);
-  
-  try {
-    await download(url, binaryPath);
-    return binaryPath;
-  } catch (err) {
-    throw new Error(
-      `Failed to download cykani-browser binary.
-      URL: ${url}
-      Error: ${err.message}
-      
-      Set CYKANI_BINARY_PATH to your local binary, or ensure the download URL is accessible.
-      `
-    );
-  }
+  await downloadAndExtract(version, platform);
+  return binaryPath;
 }
 
 export function clearCache() {
-  // Remove cached binary
   const cacheDir = getCacheDir();
-  // In real implementation: rm -rf cacheDir
-  console.log('Cache cleared:', cacheDir);
+  if (existsSync(cacheDir)) {
+    rmSync(cacheDir, { recursive: true, force: true });
+    console.log(`[cykani-stealth] Cache cleared: ${cacheDir}`);
+  }
 }
 
-export function binaryInfo() {
+export function binaryInfo(browserVersion) {
+  const version = browserVersion || getVersion();
   return {
+    version,
     platform: getPlatform(),
-    version: getVersion(),
-    binaryPath: getBinaryPath(),
-    cacheDir: getCacheDir(),
+    binaryPath: getBinaryPath(version),
+    cacheDir: getCacheDir(version),
     envPath: process.env.CYKANI_BINARY_PATH,
+    downloadUrl: process.env.CYKANI_DOWNLOAD_URL || '(default GitHub)',
   };
+}
+
+export async function install() {
+  const version = getVersion();
+  const platform = getPlatform();
+  const binaryPath = getBinaryPath(version);
+
+  if (existsSync(binaryPath)) {
+    console.log(`[cykani-stealth] Binary already installed: ${binaryPath}`);
+    return binaryPath;
+  }
+
+  await downloadAndExtract(version, platform);
+  return binaryPath;
+}
+
+export async function update() {
+  const repo = process.env.CYKANI_DOWNLOAD_URL
+    ? null
+    : 'https://api.github.com/repos/kaunda-a/cykani-browser/releases';
+
+  if (!repo) {
+    console.log('[cykani-stealth] Update check disabled with CYKANI_DOWNLOAD_URL');
+    return null;
+  }
+
+  try {
+    const resp = await fetch(repo, { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) {
+      console.log('[cykani-stealth] Could not check for updates');
+      return null;
+    }
+    const releases = await resp.json();
+    const platformTarball = `cykani-chrome-chromium-v1.0.0-${getPlatform()}.tar.gz`;
+    for (const rel of releases) {
+      if (rel.tag_name?.startsWith('chromium-v') && !rel.draft) {
+        const assets = new Set((rel.assets || []).map(a => a.name));
+        if (assets.has(platformTarball)) {
+          const latest = rel.tag_name.replace('chromium-v', '');
+          const latestPath = getBinaryPath(latest);
+          if (!existsSync(latestPath)) {
+            console.log(`[cykani-stealth] Updating to v${latest}...`);
+            await downloadAndExtract(latest, getPlatform());
+          }
+          return latest;
+        }
+      }
+    }
+  } catch (e) {
+    console.log('[cykani-stealth] Update check failed:', e.message);
+  }
+  return null;
 }

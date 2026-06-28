@@ -1,6 +1,0 @@
-.github/
-CHANGELOG.md
-node_modules/
-tests/
-/*.log
-.env

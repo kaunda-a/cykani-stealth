@@ -1,32 +1,42 @@
 {
   "name": "cykani-stealth",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "description": "Stealth Chromium wrapper with fingerprint evasion and human-like behavior",
-  "main": "src/index.js",
   "type": "module",
+  "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",
     "./stealth": "./src/stealth/constellation.js",
     "./phantom": "./src/stealth/phantom.js",
     "./core": "./src/core/maestro.js",
-    "./types": "./src/types/config.ts",
+    "./types": "./src/types/config.js",
     "./adapters/playwright": "./src/adapters/playwright.js",
     "./stealth/eval": "./src/stealth/eval.js"
   },
+  "bin": {
+    "cykani-stealth": "./src/cli.js"
+  },
+  "files": [
+    "src"
+  ],
   "scripts": {
-    "test": "node --test tests/*.test.js 2>/dev/null || node tests/unit.test.js",
-    "lint": "node --check src/*.js src/**/*.js"
+    "test": "node tests/unit.test.js"
   },
   "keywords": ["stealth", "chromium", "puppeteer", "playwright", "bot-detection", "undetected", "cykani-browser"],
   "license": "MIT",
+  "author": "Ndumiso Banda",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ndumsio/cykani-stealth"
+  },
+  "homepage": "https://github.com/ndumsio/cykani-stealth#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "playwright-core": "^1.40.0"
   },
   "optionalDependencies": {
     "mmdb-lib": "^0.0.1"
-  },
-  "author": "Ndumiso Banda",
-  "engines": {
-    "node": ">=18.0.0"
   }
 }

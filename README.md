@@ -8,7 +8,22 @@ Stealth Chromium wrapper with fingerprint evasion and human-like behavior.
 npm install cykani-stealth
 ```
 
-Requires `CYKANI_BINARY_PATH` environment variable pointing to a cykani-browser (patched Chromium) binary.
+**Binary Distribution:**
+- The cykani-stealth npm package contains only the JavaScript wrapper
+- The patched Chromium binary is downloaded automatically on first use (cached in `~/.cykani-stealth/`)
+- Releases are tagged as `chromium-vX.Y.Z` in the cykani-browser repository
+
+**Manual Binary Setup (optional):**
+```bash
+# Download binary manually or set path to local build
+export CYKANI_BINARY_PATH=/path/to/cykani-browser/chrome
+```
+
+**CLI:**
+```bash
+npx cykani-stealth --url=https://example.com --fingerprint=7
+npx cykani-stealth --test=sannysoft --fingerprint=42
+```
 
 ## Quick Start
 
