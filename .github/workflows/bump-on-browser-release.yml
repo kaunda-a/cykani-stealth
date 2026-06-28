@@ -1,0 +1,43 @@
+name: Bump cykani-stealth on browser release
+
+on:
+  repository_dispatch:
+    types: [browser-released]
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout cykani-stealth
+        uses: actions/checkout@v4
+        with:
+          repository: kaunda-a/cykani-stealth
+          token: ${{ secrets.BROWSER_REPO_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bump dependency version
+        run: |
+          NEW_VERSION=${{ github.event.client_payload.version }}
+          echo "Browser version: $NEW_VERSION"
+          # Optionally bump cykani-stealth minor version
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json'));
+            const parts = pkg.version.split('.');
+            parts[1] = parseInt(parts[1]) + 1;
+            pkg.version = parts.join('.');
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('Bumped to', pkg.version);
+          "
+
+      - name: Commit and push
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add package.json
+          git commit -m "chore: bump version for browser release ${{ github.event.client_payload.version }}"
+          git push

@@ -65,7 +65,10 @@ const fast = await aggressive({ fingerprint: 13 });
 | Weave | Request interception, header normalization |
 | Diagnostic | Stealth verification toolkit |
 | Visual | Screenshot regression testing |
-| Poolize | Proxy rotation + health-aware load balancing |
+| Poolize | Proxy rotation + health-aware load balancing + auto-recovery |
+| CaptchaSolver | reCAPTCHA, hCaptcha, Turnstile solving via CapSolver/2captcha |
+| Webhook | Slack, Discord, Telegram diagnostics alerts |
+| ProxyManager | Health checks with cooldown + status reporting |
 | Hooks | Plugin architecture |
 
 ## Entity Configuration
@@ -97,6 +100,57 @@ const entity = {
     headless: true,
   },
 };
+```
+
+## Captcha Solving
+
+```javascript
+import { CaptchaSolver } from 'cykani-stealth';
+
+const solver = new CaptchaSolver({
+  apiKey: 'your-capsolver-key',
+  service: 'capsolver', // capsolver, twocaptcha, anticaptcha
+});
+
+const result = await solver.solveRecaptchaV2({
+  siteKey: '6Ld...',
+  pageUrl: 'https://example.com/login',
+});
+
+await page.evaluate((token) => {
+  document.querySelector('[name="g-recaptcha-response"]').value = token;
+}, result.token);
+```
+
+## Webhook Alerts
+
+```javascript
+import { createSlackWebhook, createDiscordWebhook } from 'cykani-stealth';
+
+const slack = createSlackWebhook('https://hooks.slack.com/services/...');
+await slack.send({
+  title: 'Cykani Scan Complete',
+  payload: { inconsistent: false, passes: 36, failures: 0 },
+});
+
+const discord = createDiscordWebhook('https://discord.com/api/webhooks/...');
+await discord.send({ title: 'Alert', payload: { status: 'blocked' }, color: 0xff0000 });
+```
+
+## Enhanced Proxy Rotation
+
+```javascript
+import { ProxyManager } from 'cykani-stealth';
+
+const pm = new ProxyManager({ maxFailures: 3, cooldownMs: 30000 });
+pm.addProxy('http://proxy1:3128');
+pm.addProxy('http://proxy2:3128');
+pm.addProxy('http://proxy3:3128');
+
+// Health check all proxies
+const status = await pm.checkAll();
+console.log(status);
+// [ { url: '...', ok: true, health: 0.95 }, ... ]
 ```
 
 ## License

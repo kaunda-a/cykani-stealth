@@ -24,6 +24,8 @@ export { Recorder } from './core/recorder.js';
 export { WebSocketInterceptor, patchWebSocket } from './stealth/websocket.js';
 export { ensureBinary, binaryInfo, clearCache } from './download.js';
 export { resolveProxyConfig, ProxyManager } from './utils/proxy.js';
+export { CaptchaSolver } from './utils/captcha.js';
+export { Webhook, createSlackWebhook, createDiscordWebhook, createTelegramWebhook } from './utils/webhook.js';
 
 export { StealthEval } from './stealth/eval.js';
 export { injectCursorOverlay, patchContextForCursor } from './stealth/cursor.js';
