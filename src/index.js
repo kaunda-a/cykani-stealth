@@ -19,6 +19,9 @@ export { Observer } from './agents/observer.js';
 export { Diagnostic } from './agents/diagnostic.js';
 export { Visual } from './agents/visual.js';
 export { Perceptual } from './agents/perceptual.js';
+export { Perceptor } from './agents/perceptor.js';
+export { AutoPilot } from './agents/autoPilot.js';
+export { Autonomous } from './agents/autonomous.js';
 export { Recorder } from './core/recorder.js';
 
 export { WebSocketInterceptor, patchWebSocket } from './stealth/websocket.js';
@@ -29,6 +32,7 @@ export { Webhook, createSlackWebhook, createDiscordWebhook, createTelegramWebhoo
 
 export { StealthEval } from './stealth/eval.js';
 export { injectCursorOverlay, patchContextForCursor } from './stealth/cursor.js';
+export { walkOut } from './humor/strike.js';
 
 export { IGNORE_DEFAULT_ARGS, DEFAULT_VIEWPORT } from './core/maestro.js';
 

@@ -88,9 +88,9 @@ export class Sentinel {
     const total = successes + failures;
     return {
       state: this.state,
-      successRate: total ? successes / total : 1,
+      successRate: total > 0 ? successes / total : 1,
       recentOperations: total,
-      avgDuration: total
+      avgDuration: total > 0
         ? recent.reduce((a, m) => a + (m.duration || 0), 0) / total
         : 0,
     };

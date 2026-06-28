@@ -67,6 +67,39 @@ export class CookieJar {
     }
   }
 
+  /** Import cookies from a Playwright BrowserContext into the jar */
+  async importFromContext(context) {
+    try {
+      const cookies = await context.cookies();
+      for (const c of cookies) {
+        this.set(`https://${c.domain}`, { name: c.name, value: c.value });
+      }
+      return cookies.length;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** Export jar cookies to a Playwright BrowserContext */
+  async exportToContext(context) {
+    const all = [];
+    for (const [, cookie] of this.store) {
+      all.push({
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: '/',
+        httpOnly: false,
+        secure: false,
+        sameSite: 'Lax',
+      });
+    }
+    if (all.length > 0) {
+      try { await context.addCookies(all); } catch {}
+    }
+    return all.length;
+  }
+
   _key(domain, name) {
     return `${domain}:${name}`;
   }

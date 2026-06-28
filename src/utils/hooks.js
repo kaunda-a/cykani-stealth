@@ -22,11 +22,9 @@ export class Hooks {
     const fns = this.registry.get(event) || [];
     for (const fn of fns) {
       try {
-        // If async, await it
-        if (fn.constructor.name === 'AsyncFunction') {
-          await fn(payload);
-        } else {
-          fn(payload);
+        const result = fn(payload);
+        if (result && typeof result.then === 'function') {
+          await result;
         }
       } catch (_) {
         // hooks are best-effort

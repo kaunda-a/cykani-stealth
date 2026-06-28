@@ -128,31 +128,37 @@ export const PHANTOM = (() => {
 
     // ─── PluginArray / MimeTypeArray naturalization ───
     try {
+      const PluginArrayProto = window.PluginArray && window.PluginArray.prototype;
+      const MimeTypeArrayProto = window.MimeTypeArray && window.MimeTypeArray.prototype;
       Object.defineProperty(navigator, 'plugins', {
         get() {
-          const plugins = [
+          const arr = PluginArrayProto ? Object.create(PluginArrayProto) : [];
+          const items = [
             { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
             { name: 'Chrome PDF Viewer', filename: 'mhjfnpgdgkikblciimleagblfjnganm', description: 'Portable Document Format' },
             { name: 'Native Client', filename: 'internal-nacl-plugin', description: 'Native Client module' },
           ];
-          plugins.length = plugins.length;
-          plugins.refresh = function() {};
-          plugins.item = function(idx) { return this[idx]; };
-          plugins.namedItem = function(name) { return null; };
-          return plugins;
+          items.forEach((p, i) => { arr[i] = p; });
+          arr.length = items.length;
+          arr.refresh = function() {};
+          arr.item = function(idx) { return this[idx] || null; };
+          arr.namedItem = function(name) { return null; };
+          return arr;
         },
       });
       Object.defineProperty(navigator, 'mimeTypes', {
         get() {
-          const types = [
+          const arr = MimeTypeArrayProto ? Object.create(MimeTypeArrayProto) : [];
+          const items = [
             { type: 'application/pdf', description: 'Portable Document Format', enabledPlugin: {} },
             { type: 'application/x-google-chrome-pdf', description: 'Portable Document Format', enabledPlugin: {} },
             { type: 'application/x-nacl', description: 'Native Client executable', enabledPlugin: {} },
           ];
-          types.length = types.length;
-          types.item = function(idx) { return this[idx]; };
-          types.namedItem = function(name) { return null; };
-          return types;
+          items.forEach((t, i) => { arr[i] = t; });
+          arr.length = items.length;
+          arr.item = function(idx) { return this[idx] || null; };
+          arr.namedItem = function(name) { return null; };
+          return arr;
         },
       });
     } catch (_) {}

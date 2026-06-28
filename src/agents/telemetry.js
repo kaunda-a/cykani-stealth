@@ -78,4 +78,24 @@ export class Telemetry {
     page.on('request', (req) => this.recordRequest(req));
     page.on('response', (res) => this.recordResponse(res));
   }
+
+  /** Write HAR to disk */
+  async writeHar(filePath) {
+    const { writeFile } = await import('fs/promises');
+    await writeFile(filePath, JSON.stringify(this.exportHar(), null, 2));
+  }
+
+  /** Write metrics snapshot to disk */
+  async writeMetrics(filePath) {
+    const { writeFile } = await import('fs/promises');
+    await writeFile(filePath, JSON.stringify(this.exportMetrics(), null, 2));
+  }
+
+  /** Append batch of events to a rolling log file */
+  async appendToLog(filePath) {
+    const { appendFile } = await import('fs/promises');
+    const batch = this.events.slice(-100);
+    const lines = batch.map((e) => JSON.stringify(e) + '\n').join('');
+    await appendFile(filePath, lines);
+  }
 }

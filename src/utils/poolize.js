@@ -11,6 +11,7 @@ export class Poolize {
     this.autoRecover = opts.autoRecover ?? true;
     this.recoveryInterval = opts.recoveryInterval ?? 30000;
     this.maxFailures = opts.maxFailures ?? 3;
+    this.factory = opts.factory ?? null;
     this.onRecover = opts.onRecover ?? null; // callback(id, newSession)
     if (this.autoRecover) this._startRecovery();
   }
@@ -121,8 +122,9 @@ export class Poolize {
   }
 
   async _recoverSession(id, oldSession) {
-    // Subclasses or users can override recovery logic
-    // Default: return null (must be overridden or configured)
+    if (this.factory) {
+      return this.factory(id, oldSession);
+    }
     return null;
   }
 

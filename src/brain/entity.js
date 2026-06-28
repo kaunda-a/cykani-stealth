@@ -1,4 +1,6 @@
-// Entity behavior engine — physics-based human simulation
+// Entity behavior engine — physics-based strike behavior
+
+import { createSeededRng } from '../utils/helpers.js';
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
@@ -21,14 +23,14 @@ function bezier(p0, p1, p2, p3, t) {
 }
 
 // Random control points for natural curves
-function randomControlPoints(start, end, seed) {
+function randomControlPoints(start, end, rng) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const len = Math.hypot(dx, dy) || 1;
   const px = -dy / len;
   const py = dx / len;
-  const bias1 = (Math.random() - 0.5) * len * 0.3;
-  const bias2 = (Math.random() - 0.5) * len * 0.3;
+  const bias1 = (rng() - 0.5) * len * 0.3;
+  const bias2 = (rng() - 0.5) * len * 0.3;
   return [
     { x: start.x + dx * 0.25 + px * bias1, y: start.y + dy * 0.25 + py * bias1 },
     { x: start.x + dx * 0.75 + px * bias2, y: start.y + dy * 0.75 + py * bias2 },
@@ -38,6 +40,10 @@ function randomControlPoints(start, end, seed) {
 export class EntityBrain {
   constructor(entity = {}) {
     this.entity = entity;
+    this._seed = entity.fingerprint ?? 7;
+    this._rng = createSeededRng(this._seed + 1);
+    this._rng2 = createSeededRng(this._seed + 9999);
+    this._rng3 = createSeededRng(this._seed + 55555);
     this.state = {
       cursor: { x: 500, y: 300 },
       lastAction: Date.now(),
@@ -58,8 +64,8 @@ export class EntityBrain {
       sluggish: 3.5,
     }[latency] ?? 0.1;
 
-    const jitter = (Math.random() - 0.5) * 2 * entropy * base;
-    const pause = Math.max(0, Math.random() * hesitation * base * 2);
+    const jitter = (this._rng() - 0.5) * 2 * entropy * base;
+    const pause = Math.max(0, this._rng() * hesitation * base * 2);
 
     return Math.max(5, base * multiplier + jitter + pause);
   }
@@ -76,11 +82,11 @@ export class EntityBrain {
 
     const st = { x: start.x, y: start.y };
     const en = { x: end.x, y: end.y };
-    const [cp1, cp2] = randomControlPoints(st, en, this.entity.fingerprint ?? 7);
+    const [cp1, cp2] = randomControlPoints(st, en, this._rng2);
 
     const points = [];
     let burstCounter = 0;
-    const burstSize = 3 + Math.floor(Math.random() * 3);
+    const burstSize = 3 + Math.floor(this._rng() * 3);
 
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
@@ -88,8 +94,8 @@ export class EntityBrain {
       const pt = bezier(st, cp1, cp2, en, easedT);
 
       const wobbleAmp = Math.sin(Math.PI * t) * wobbleMax;
-      const wx = pt.x + (Math.random() - 0.5) * 2 * wobbleAmp;
-      const wy = pt.y + (Math.random() - 0.5) * 2 * wobbleAmp;
+      const wx = pt.x + (this._rng() - 0.5) * 2 * wobbleAmp;
+      const wy = pt.y + (this._rng() - 0.5) * 2 * wobbleAmp;
 
       points.push({ x: Math.round(wx), y: Math.round(wy), burst: false });
 
@@ -102,9 +108,9 @@ export class EntityBrain {
 
     // Overshoot
     const precision = this.entity.instincts?.precision ?? 0.5;
-    if (Math.random() < (1 - precision)) {
+    if (this._rng3() < (1 - precision)) {
       const angle = Math.atan2(end.y - start.y, end.x - start.x);
-      const osDist = 3 + Math.random() * 3;
+      const osDist = 3 + this._rng() * 3;
       const osX = end.x + Math.cos(angle) * osDist;
       const osY = end.y + Math.sin(angle) * osDist;
       points.push({ x: Math.round(osX), y: Math.round(osY), burst: false, ovsh: true });
@@ -129,14 +135,14 @@ export class EntityBrain {
     const base = this.entity.instincts?.hesitation ?? 0.5;
     const wpm = lerp(40, 10, base);
     const msPerChar = 1200 / wpm;
-    const jitter = (Math.random() - 0.5) * 0.3 * msPerChar;
+    const jitter = (this._rng2() - 0.5) * 0.3 * msPerChar;
     return Math.max(10, msPerChar + jitter);
   }
 
   shouldMakeTypo() {
     const precision = this.entity.instincts?.precision ?? 0.5;
     const rate = Math.max(0.001, (1 - precision) * 0.06);
-    return Math.random() < rate;
+    return this._rng3() < rate;
   }
 
   getArgs() {

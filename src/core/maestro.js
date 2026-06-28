@@ -12,6 +12,11 @@ import { Telemetry } from '../agents/telemetry.js';
 import { Strategist } from '../agents/strategist.js';
 import { Observer } from '../agents/observer.js';
 import { Recorder } from './recorder.js';
+import { ensureBinary } from '../download.js';
+import { assertValidEntity } from '../utils/validate.js';
+import { walkOut } from '../humor/strike.js';
+import { AutoPilot } from '../agents/autoPilot.js';
+import { Autonomous } from '../agents/autonomous.js';
 
 export const IGNORE_DEFAULT_ARGS = ['--enable-automation', '--enable-unsafe-swiftshader'];
 export const DEFAULT_VIEWPORT = { width: 1920, height: 947 };
@@ -22,7 +27,18 @@ export class Maestro {
     this.contexts = new Map();
     this.pages = new Map();
     this.sessionsState = new Map();
-    this.pool = opts.pool ?? new Poolize();
+    this.pool = opts.pool ?? new Poolize({
+      autoRecover: true,
+      factory: async (id, oldSession) => {
+        await this.close(id).catch(() => {});
+        const state = this.sessionsState.get(id);
+        if (!state) return null;
+        const entity = { ...state.entity };
+        entity.fingerprint = (entity.fingerprint ?? 7) + 1;
+        const newSession = await this.launch(entity);
+        return newSession;
+      },
+    });
     this.sentinel = opts.sentinel ?? new Sentinel();
     this.cookieJar = opts.cookieJar ?? new CookieJar(opts.cookieFile);
     this.hooks = opts.hooks ?? new Hooks();
@@ -30,15 +46,19 @@ export class Maestro {
     this.strategist = opts.strategist ?? new Strategist();
   }
 
-  _resolveBinary(entity) {
+  async _resolveBinary(entity) {
     if (entity.binary) return entity.binary;
-    if (process.env.CYKANI_BINARY_PATH) return process.env.CYKANI_BINARY_PATH;
-    return null;
+    if (process.env.CYKANI_BINARY_PATH) {
+      const { existsSync } = await import('fs');
+      if (existsSync(process.env.CYKANI_BINARY_PATH)) return process.env.CYKANI_BINARY_PATH;
+    }
+    return ensureBinary();
   }
 
   async buildLaunchOptions(entity = {}) {
+    assertValidEntity(entity);
     const brain = new EntityBrain(entity);
-    const binaryPath = this._resolveBinary(entity);
+    const binaryPath = await this._resolveBinary(entity);
     const args = brain.getArgs();
 
     // Add IGNORE_DEFAULT_ARGS to suppress automation signals
@@ -51,8 +71,9 @@ export class Maestro {
   }
 
   async launch(entity = {}) {
+    assertValidEntity(entity);
     const brain = new EntityBrain(entity);
-    let executable = this._resolveBinary(entity);
+    let executable = await this._resolveBinary(entity);
     if (!executable) throw new Error('CYKANI_BINARY_PATH environment variable is required or pass entity.binary');
 
     let proxy = entity.proxy;
@@ -84,7 +105,8 @@ export class Maestro {
     this.hooks.emit('after:pageCreated', { page });
 
     const id = this._genId();
-    const choreographer = new Choreographer(page, brain, { telemetry: this.telemetry, hooks: this.hooks });
+    const choreographer = new Choreographer(page, brain, { telemetry: this.telemetry, hooks: this.hooks, strategist: this.strategist });
+    if (entity.humor) walkOut(page, choreographer, brain);
 
     this.browsers.set(id, browser);
     this.contexts.set(id, context);
@@ -98,7 +120,12 @@ export class Maestro {
   async close(id) {
     this.hooks.emit('before:close', { id });
     const browser = this.browsers.get(id);
-    if (browser) await browser.close().catch(() => {});
+    if (browser) {
+      await browser.close().catch(() => {});
+    } else {
+      const ctx = this.contexts.get(id);
+      if (ctx) await ctx.close().catch(() => {});
+    }
     this.browsers.delete(id);
     this.contexts.delete(id);
     this.pages.delete(id);
@@ -128,13 +155,15 @@ export class Maestro {
     const newPage = await newContext.newPage();
     this.contexts.set(id, newContext);
     this.pages.set(id, newPage);
-    state.choreographer = new Choreographer(newPage, state.brain, { telemetry: this.telemetry, hooks: this.hooks });
+    state.choreographer = new Choreographer(newPage, state.brain, { telemetry: this.telemetry, hooks: this.hooks, strategist: this.strategist });
+    if (state.entity.humor) walkOut(newPage, state.choreographer, state.brain);
     return this._getProxy(id);
   }
 
   async launchContext(entity = {}) {
+    assertValidEntity(entity);
     const brain = new EntityBrain(entity);
-    let executable = this._resolveBinary(entity);
+    let executable = await this._resolveBinary(entity);
     if (!executable) throw new Error('CYKANI_BINARY_PATH required');
 
     let proxy = entity.proxy;
@@ -172,7 +201,8 @@ export class Maestro {
 
     const id = this._genId();
     const page = await context.newPage();
-    const choreographer = new Choreographer(page, brain, { telemetry: this.telemetry, hooks: this.hooks });
+    const choreographer = new Choreographer(page, brain, { telemetry: this.telemetry, hooks: this.hooks, strategist: this.strategist });
+    if (entity.humor) walkOut(page, choreographer, brain);
     this.browsers.set(id, browser);
     this.contexts.set(id, context);
     this.pages.set(id, page);
@@ -181,8 +211,9 @@ export class Maestro {
   }
 
   async launchPersistentContext(entity = {}) {
+    assertValidEntity(entity);
     const brain = new EntityBrain(entity);
-    let executable = this._resolveBinary(entity);
+    let executable = await this._resolveBinary(entity);
     if (!executable) throw new Error('CYKANI_BINARY_PATH required');
 
     let proxy = entity.proxy;
@@ -207,7 +238,8 @@ export class Maestro {
 
     const id = this._genId();
     const page = context.pages()[0] || await context.newPage();
-    const choreographer = new Choreographer(page, brain, { telemetry: this.telemetry, hooks: this.hooks });
+    const choreographer = new Choreographer(page, brain, { telemetry: this.telemetry, hooks: this.hooks, strategist: this.strategist });
+    if (entity.humor) walkOut(page, choreographer, brain);
     this.contexts.set(id, context);
     this.pages.set(id, page);
     this.sessionsState.set(id, { entity, brain, choreographer, proxy, createdAt: Date.now(), id });
@@ -217,25 +249,67 @@ export class Maestro {
   _getProxy(id) {
     const state = this.sessionsState.get(id);
     if (!state) return null;
+    const c = state.choreographer;
+    const pageRef = () => this.pages.get(id);
+    let autoPilotRef = null;
+    let autoRef = null;
     return {
       id,
-      page: () => this.pages.get(id),
-      goto: (url, opts) => state.choreographer.goto(url, opts),
-      click: (sel, opts) => state.choreographer.click(sel, opts),
-      hover: (sel, opts) => state.choreographer.hover(sel, opts),
-      type: (sel, text, opts) => state.choreographer.type(sel, text, opts),
-      scroll: (opts) => state.choreographer.scroll(opts),
-      read: (opts) => state.choreographer.read(opts),
-      idle: (ms) => state.choreographer.idle(ms),
-      wait: (cond, opts) => state.choreographer.wait(cond, opts),
-      screenshot: (opts) => state.choreographer.screenshot(opts),
-      eval: (fn, ...args) => state.choreographer.eval(fn, ...args),
+      page: () => pageRef(),
+      autoPilot: () => {
+        if (!autoPilotRef) autoPilotRef = new AutoPilot(pageRef(), c);
+        return autoPilotRef;
+      },
+      autonomous: () => {
+        if (!autoRef) autoRef = new Autonomous(pageRef(), c);
+        return autoRef;
+      },
+      goto: (url, opts) => c.goto(url, opts),
+      click: (sel, opts) => c.click(sel, opts),
+      dblclick: (sel, opts) => c.dblclick(sel, opts),
+      hover: (sel, opts) => c.hover(sel, opts),
+      type: (sel, text, opts) => c.type(sel, text, opts),
+      fill: (sel, text, opts) => c.fill(sel, text, opts),
+      selectOption: (sel, values, opts) => c.selectOption(sel, values, opts),
+      uploadFile: (sel, paths) => c.uploadFile(sel, paths),
+      scroll: (opts) => c.scroll(opts),
+      read: (opts) => c.read(opts),
+      reload: (opts) => c.reload(opts),
+      goBack: (opts) => c.goBack(opts),
+      goForward: (opts) => c.goForward(opts),
+      idle: (ms) => c.idle(ms),
+      wait: (cond, opts) => c.wait(cond, opts),
+      screenshot: (opts) => c.screenshot(opts),
+      eval: (fn, ...args) => c.eval(fn, ...args),
+      evaluate: (fn, ...args) => c.evaluate(fn, ...args),
+      url: () => c.url(),
+      title: () => c.title(),
+      content: () => c.content(),
       close: () => this.close(id),
       state: () => this.getState(id),
       cookies: () => this.cookieJar,
       brain: () => state.brain,
-      record: () => new Recorder(state.choreographer.logs),
+      record: () => new Recorder(c.logs),
+      har: () => this.telemetry.exportHar(),
+      exportHar: (filePath) => this._exportHar(id, filePath),
+      on: (event, fn) => {
+        const page = this.pages.get(id);
+        if (page) page.on(event, fn);
+      },
+      off: (event, fn) => {
+        const page = this.pages.get(id);
+        if (page) page.off(event, fn);
+      },
     };
+  }
+
+  async _exportHar(id, filePath) {
+    const har = this.telemetry.exportHar();
+    if (filePath) {
+      const { writeFile } = await import('fs/promises');
+      await writeFile(filePath, JSON.stringify(har, null, 2));
+    }
+    return har;
   }
 
   _genId() { return `cyk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`; }

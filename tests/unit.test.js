@@ -1,23 +1,15 @@
-import { strict as assert } from 'node:assert';
-import { EntityBrain } from '../src/brain/entity.js';
+import { describe, run } from './harness.js';
 
-(async () => {
-  console.log('Running unit tests...');
+// Import all unit test suites
+await import('./unit/helpers.test.js');
+await import('./unit/entity.test.js');
+await import('./unit/stealth.test.js');
+await import('./unit/cookies.test.js');
+await import('./unit/pool.test.js');
+await import('./unit/sentinel.test.js');
+await import('./unit/hooks.test.js');
+await import('./unit/validate.test.js');
+await import('./unit/errors.test.js');
 
-  const brain = new EntityBrain({ instincts: { hesitation: 0.5 } });
-  const delay = brain.getTypingDelay();
-  assert(delay >= 10 && delay <= 200, 'Typing delay should be in realistic range');
-  console.log('Typing delay:', delay, 'ms');
-
-  const curve = brain.getMouseCurve({ x: 0, y: 0 }, { x: 100, y: 100 });
-  assert(curve.length > 0, 'Mouse curve should have points');
-  assert(curve[0].x === 0 || curve[0].y === 0, 'Curve should start at origin');
-  console.log('Mouse curve steps:', curve.length);
-
-  const args = brain.getArgs();
-  assert(args.includes('--fingerprint='), 'Should include fingerprint arg');
-  assert(args.includes('--ignore-gpu-blocklist') || args.includes('--fingerprint-platform='), 'Should include stealth args');
-  console.log('Args count:', args.length);
-
-  console.log('All unit tests passed.');
-})();
+const { passed, failed } = await run();
+process.exit(failed > 0 ? 1 : 0);

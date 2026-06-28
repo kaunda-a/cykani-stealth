@@ -1,0 +1,37 @@
+name: Auto-publish wrapper on browser release
+
+on:
+  repository_dispatch:
+    types: [browser-released]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify dispatch source
+        env:
+          PAYLOAD_TOKEN: ${{ github.event.client_payload.token }}
+          BROWSER_DISPATCH_TOKEN: ${{ secrets.BROWSER_DISPATCH_TOKEN }}
+        run: |
+          if [ "$PAYLOAD_TOKEN" != "$BROWSER_DISPATCH_TOKEN" ]; then
+            echo "Invalid dispatch token"
+            exit 1
+          fi
+
+      - name: Sync binary version and bump wrapper
+        env:
+          BINARY_VERSION: ${{ github.event.client_payload.version }}
+        run: node scripts/sync-and-publish.mjs
+
+      - name: Publish to npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

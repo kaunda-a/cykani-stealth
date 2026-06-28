@@ -18,6 +18,7 @@ export class Choreographer {
     this.brain = brain;
     this.telemetry = opts.telemetry;
     this.hooks = opts.hooks;
+    this.strategist = opts.strategist ?? null;
     this.logs = [];
     this._lastResult = null;
     this.observer = new Observer(page);
@@ -64,11 +65,19 @@ export class Choreographer {
     if (!isVisible) {
       throw new Error(`Element not visible: ${selector}`);
     }
-    // Additional checks for pointer-events
     const box = await this.page.locator(selector).first().boundingBox();
     if (!box || box.width === 0 || box.height === 0) {
       throw new Error(`Element has zero size: ${selector}`);
     }
+    const attrs = await this.page.locator(selector).first().evaluate((el) => ({
+      disabled: el.disabled === true || el.getAttribute('disabled') !== null,
+      readonly: el.readOnly === true || el.getAttribute('readonly') !== null,
+      pointerEvents: getComputedStyle(el).pointerEvents,
+      tagName: el.tagName,
+    })).catch(() => ({}));
+    if (attrs.disabled) throw new Error(`Element is disabled: ${selector}`);
+    if (type === 'type' && attrs.readonly) throw new Error(`Element is readonly: ${selector}`);
+    if (attrs.pointerEvents === 'none') throw new Error(`Element has pointer-events: none: ${selector}`);
     return { x: box.x + box.width / 2, y: box.y + box.height / 2, box };
   }
 
@@ -79,6 +88,9 @@ export class Choreographer {
     await sleep(this.brain.getDelay(200));
     const challenge = await this.observer.detectCaptcha();
     this._log('challenged', challenge);
+    if (challenge.detected && this.strategist) {
+      this.strategist.adaptFromObserver(challenge);
+    }
     if (this.stealth) this.stealth.invalidate();
     this._lastResult = { url, title: await this.page.title(), captcha: challenge };
     return this;
@@ -96,7 +108,7 @@ export class Choreographer {
       y: box.y + box.height / 2 + (Math.random() - 0.5) * box.height * 0.3,
     };
 
-    await this._humanMove(target);
+    await this._strikeMove(target);
     await sleep(this.brain.getDelay(100));
     await this.page.mouse.down();
     await sleep(this.brain.getDelay(30));
@@ -107,6 +119,33 @@ export class Choreographer {
       await this.page.waitForNavigation({ waitUntil: 'networkidle' }).catch(() => {});
     }
     this._lastResult = { clicked: selector };
+    return this;
+  }
+
+  async dblclick(selector, opts = {}) {
+    this._log('dblclick', { selector, opts });
+    await this._ensureStealth();
+
+    const { x, y, box } = await this._ensureActionable(selector);
+    if (!box) throw new Error(`Element not found: ${selector}`);
+
+    const target = {
+      x: box.x + box.width / 2 + (Math.random() - 0.5) * box.width * 0.3,
+      y: box.y + box.height / 2 + (Math.random() - 0.5) * box.height * 0.3,
+    };
+
+    await this._strikeMove(target);
+    await sleep(this.brain.getDelay(100));
+    await this.page.mouse.down();
+    await sleep(this.brain.getDelay(25));
+    await this.page.mouse.up();
+    await sleep(this.brain.getDelay(40));
+    await this.page.mouse.down();
+    await sleep(this.brain.getDelay(25));
+    await this.page.mouse.up();
+    await sleep(this.brain.getDelay(80));
+
+    this._lastResult = { dblclicked: selector };
     return this;
   }
 
@@ -121,7 +160,7 @@ export class Choreographer {
       y: box.y + box.height / 2 + (Math.random() - 0.5) * box.height * 0.2,
     };
 
-    await this._humanMove(target);
+    await this._strikeMove(target);
     const linger = opts.linger ?? this.brain.getDelay(800);
     await sleep(linger);
     this._lastResult = { hovered: selector };
@@ -137,29 +176,45 @@ export class Choreographer {
     await el.focus();
     await sleep(this.brain.getDelay(100));
 
+    let typed = 0;
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
-      if (this.brain.shouldMakeTypo() && !opts.noTypos) {
-        const wrong = String.fromCharCode(97 + Math.floor(Math.random() * 26));
-        await this.page.keyboard.press(wrong);
-        await sleep(this.brain.getTypingDelay() * 0.5);
-        await this.page.keyboard.press('Backspace');
-        await sleep(this.brain.getTypingDelay() * 0.8);
-      }
+      try {
+        if (this.brain.shouldMakeTypo() && !opts.noTypos) {
+          const wrong = String.fromCharCode(97 + Math.floor(this.brain._rng() * 26));
+          await this.page.keyboard.press(wrong);
+          await sleep(this.brain.getTypingDelay() * 0.5);
+          await this.page.keyboard.press('Backspace');
+          await sleep(this.brain.getTypingDelay() * 0.8);
+        }
 
-      if (char === ' ') {
-        await this.page.keyboard.press(' ');
-        await sleep(this.brain.getTypingDelay() * 1.1);
-      } else {
-        await this.page.keyboard.press(char);
-        await sleep(this.brain.getTypingDelay());
+        if (char === ' ') {
+          await this.page.keyboard.press(' ');
+          await sleep(this.brain.getTypingDelay() * 1.1);
+        } else {
+          await this.page.keyboard.press(char);
+          await sleep(this.brain.getTypingDelay());
+        }
+        typed++;
+      } catch {
+        // Re-focus and retry once if keystroke fails mid-stream
+        try {
+          await this.page.locator(selector).first().focus();
+          await sleep(this.brain.getDelay(50));
+          if (char === ' ') {
+            await this.page.keyboard.press(' ');
+          } else {
+            await this.page.keyboard.press(char);
+          }
+          typed++;
+        } catch {}
       }
     }
     if (opts.submit) {
       await sleep(this.brain.getDelay(200));
       await this.page.keyboard.press('Enter');
     }
-    this._lastResult = { typed: text.length };
+    this._lastResult = { typed };
     return this;
   }
 
@@ -212,7 +267,7 @@ export class Choreographer {
     return this;
   }
 
-  async _humanMove(target) {
+  async _strikeMove(target) {
     const current = { x: this.brain.state.cursor.x, y: this.brain.state.cursor.y };
     const points = this.brain.getMouseCurve(current, target);
     for (const p of points) {
@@ -260,6 +315,75 @@ export class Choreographer {
     const result = await this.page.evaluate(fn, ...args);
     this._lastResult = { evalResult: result };
     return this;
+  }
+
+  async reload(opts = {}) {
+    this._log('reload', opts);
+    await this.page.reload({ waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
+    await sleep(this.brain.getDelay(200));
+    return this;
+  }
+
+  async goBack(opts = {}) {
+    this._log('goBack', opts);
+    await this.page.goBack({ waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
+    await sleep(this.brain.getDelay(150));
+    return this;
+  }
+
+  async goForward(opts = {}) {
+    this._log('goForward', opts);
+    await this.page.goForward({ waitUntil: opts.waitUntil ?? 'networkidle', timeout: opts.timeout ?? 30000 });
+    await sleep(this.brain.getDelay(150));
+    return this;
+  }
+
+  async fill(selector, text, opts = {}) {
+    this._log('fill', { selector, length: text.length });
+    await this._ensureStealth();
+    const el = this.page.locator(selector).first();
+    await el.click();
+    await sleep(this.brain.getDelay(80));
+    await el.fill(text);
+    await sleep(this.brain.getDelay(100));
+    this._lastResult = { filled: text.length };
+    return this;
+  }
+
+  async selectOption(selector, values, opts = {}) {
+    this._log('selectOption', { selector, values });
+    await this._ensureStealth();
+    const el = this.page.locator(selector).first();
+    await el.selectOption(values);
+    await sleep(this.brain.getDelay(100));
+    this._lastResult = { selected: values };
+    return this;
+  }
+
+  async uploadFile(selector, filePaths) {
+    this._log('uploadFile', { selector, files: filePaths });
+    await this._ensureStealth();
+    const el = this.page.locator(selector).first();
+    await el.setInputFiles(filePaths);
+    await sleep(this.brain.getDelay(150));
+    this._lastResult = { uploaded: filePaths };
+    return this;
+  }
+
+  async evaluate(fn, ...args) {
+    return this.page.evaluate(fn, ...args);
+  }
+
+  async url() {
+    return this.page.url();
+  }
+
+  async title() {
+    return this.page.title();
+  }
+
+  async content() {
+    return this.page.content();
   }
 
   get result() {

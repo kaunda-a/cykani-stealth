@@ -77,10 +77,10 @@ async function downloadFile(url, dest) {
 }
 
 async function extractTar(archivePath, destDir) {
-  mkdirSync(destDir, { recursive: true });
   if (existsSync(destDir)) {
     rmSync(destDir, { recursive: true, force: true });
   }
+  mkdirSync(destDir, { recursive: true });
   execSync(`tar -xzf ${archivePath} -C ${destDir}`, { timeout: 120000 });
 }
 
