@@ -22,14 +22,14 @@
   "scripts": {
     "test": "node tests/unit.test.js"
   },
-  "keywords": ["stealth", "chromium", "puppeteer", "playwright", "bot-detection", "undetected", "cykani-browser"],
+  "keywords": ["stealth", "chromium", "puppeteer", "playwright", "bot-detection", "undetected"],
   "license": "MIT",
   "author": "Ndumiso Banda",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ndumsio/cykani-stealth"
+    "url": "https://github.com/kaunda-a/cykani-stealth"
   },
-  "homepage": "https://github.com/ndumsio/cykani-stealth#readme",
+  "homepage": "https://github.com/kaunda-a/cykani-stealth#readme",
   "engines": {
     "node": ">=18.0.0"
   },
